@@ -33,6 +33,18 @@ port_override=$(helm template alertmanager-route-tester "$chart" --set service.p
 grep -Fq 'listen: "0.0.0.0:9090"' <<<"$port_override"
 grep -Fq 'containerPort: 9090' <<<"$port_override"
 grep -Fq 'targetPort: http' <<<"$port_override"
+if helm template alertmanager-route-tester "$chart" --set service.port=80 >/dev/null 2>&1; then
+  echo "privileged service.port must fail" >&2
+  exit 1
+fi
+unprivileged_port=$(helm template alertmanager-route-tester "$chart" --set service.port=1024)
+grep -Fq 'listen: "0.0.0.0:1024"' <<<"$unprivileged_port"
+grep -Fq 'containerPort: 1024' <<<"$unprivileged_port"
+grep -Fq 'port: 1024' <<<"$unprivileged_port"
+if helm template alertmanager-route-tester "$chart" --set service.port=65536 >/dev/null 2>&1; then
+  echo "service.port above 65535 must fail" >&2
+  exit 1
+fi
 grep -Fq '/etc/alertmanager-route-tester/config.yaml' <<<"$rendered"
 grep -Fq 'ghcr.io/linode-obs/alertmanager-route-tester:latest' <<<"$rendered"
 grep -Fq 'kind: NetworkPolicy' <<<"$rendered"

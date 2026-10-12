@@ -16,6 +16,8 @@ alertmanagers:
   - name: default
     url: http://alertmanager:9093
 
+# 1024-65535. The container runs as UID 65532 and drops all capabilities,
+# so a privileged port fails at render time.
 service:
   port: 8080
 

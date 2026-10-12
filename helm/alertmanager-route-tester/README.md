@@ -156,6 +156,6 @@ helm upgrade --install alertmanager-route-tester \
   -f values.yaml
 ```
 
-The app listens on `0.0.0.0` and `service.port` (default 8080). That value sets both the process listen address and the container port. The Service `targetPort` stays the named port `http`. Configuration changes update a pod-template checksum and restart the Deployment.
+The app listens on `0.0.0.0` and `service.port` (default 8080). That value sets the process listen address, the container port, and the Service port. The Service `targetPort` stays the named port `http`. `service.port` must be from 1024 through 65535. The container runs as UID 65532 and drops all capabilities, so rendering fails for a privileged port. Configuration changes update a pod-template checksum and restart the Deployment.
 
 Requests are set so the scheduler can place the pod. Limits are omitted so a namespace LimitRange can apply its own and so the chart does not throttle CPU.

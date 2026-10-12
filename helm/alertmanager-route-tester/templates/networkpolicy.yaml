@@ -29,7 +29,8 @@ spec:
   {{- if not (empty $podLabels) }}
   {{- $_ := set $from "podSelector" (dict "matchLabels" $podLabels) }}
   {{- end }}
-  {{- $rule := dict "from" (list $from) "ports" (list (dict "port" (.Values.service.port | int) "protocol" "TCP")) }}
+  {{- $listenPort := include "alertmanager-route-tester.listenPort" . | int }}
+  {{- $rule := dict "from" (list $from) "ports" (list (dict "port" $listenPort "protocol" "TCP")) }}
   {{- $rules = append $rules $rule }}
   {{- end }}
   ingress:

@@ -59,7 +59,7 @@ spec:
       kind: Rule
       services:
         - name: {{ $fullname }}
-          port: {{ .Values.service.port }}
+          port: {{ include "alertmanager-route-tester.listenPort" . }}
   {{- if or $tlsEnabled $mtlsEnabled }}
   tls:
     {{- if $tlsEnabled }}
