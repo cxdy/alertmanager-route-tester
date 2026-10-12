@@ -181,6 +181,31 @@ grep -Fq '"route-tester-client-ca"' <<<"$with_mtls"
 grep -Fq 'RequireAndVerifyClientCert' <<<"$with_mtls"
 grep -Fq 'name: "alertmanager-route-tester-mtls"' <<<"$with_mtls"
 
+quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace yes \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.tls.issuer.name=letsencrypt-prod \
+  --set ingress.networkPolicy.namespace=traefik \
+  --set ingress.mtls.enabled=true \
+  --set ingress.mtls.caSecretName=route-tester-client-ca)
+grep -Fq 'namespace: "yes"' <<<"$quoted_namespace"
+
+pod_labels_only=$(helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.tls.issuer.name=letsencrypt-prod \
+  --set-json 'ingress.networkPolicy.podLabels={"app.kubernetes.io/name":"traefik"}')
+grep -Fq 'namespaceSelector: {}' <<<"$pod_labels_only"
+grep -Fq 'app.kubernetes.io/name: traefik' <<<"$pod_labels_only"
+if grep -Fq 'kubernetes.io/metadata.name' <<<"$pod_labels_only"; then
+  echo "podLabels alone must match every namespace" >&2
+  exit 1
+fi
+if grep -Fq 'namespaceSelector: {}' <<<"$with_ingress"; then
+  echo "a named namespace must not match every namespace" >&2
+  exit 1
+fi
+
 numeric_names=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set ingress.hostname=route-tester.example.com \

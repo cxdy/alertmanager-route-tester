@@ -27,7 +27,7 @@ networkPolicy:
           port: 8080
 ```
 
-When `ingress.enabled` and `networkPolicy.enabled` are both true, set `ingress.networkPolicy.namespace` or `ingress.networkPolicy.podLabels` (or both). The chart appends an allow rule for that peer on `service.port`, in addition to any `networkPolicy.ingress` entries. It does not guess a controller namespace. The render fails when both are empty so the default-deny policy cannot silently block the ingress controller.
+When `ingress.enabled` and `networkPolicy.enabled` are both true, set `ingress.networkPolicy.namespace`, `ingress.networkPolicy.podLabels`, or both. The chart appends an allow rule for that peer on `service.port`, in addition to any `networkPolicy.ingress` entries. It does not guess a controller namespace. `podLabels` alone matches those labels in every namespace. A pod selector without a namespace selector would only see the release namespace, so a controller running elsewhere would stay blocked. Set `namespace` to limit the match. The render fails when both are empty so the default-deny policy cannot silently block the ingress controller.
 
 ## Ingress
 

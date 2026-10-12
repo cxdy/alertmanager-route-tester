@@ -68,7 +68,7 @@ spec:
     {{- if $mtlsEnabled }}
     options:
       name: {{ printf "%s-mtls" $fullname | quote }}
-      namespace: {{ .Release.Namespace }}
+      namespace: {{ .Release.Namespace | quote }}
     {{- end }}
   {{- end }}
 {{- end }}

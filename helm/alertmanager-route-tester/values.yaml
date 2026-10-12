@@ -52,7 +52,9 @@ ingress:
     clientAuthType: RequireAndVerifyClientCert
     caSecretName: ""
   # Used only when ingress and the NetworkPolicy are both enabled.
-  # Set namespace, podLabels, or both. The chart does not guess a namespace.
+  # Set namespace, podLabels, or both. podLabels alone match those labels in
+  # every namespace. Set namespace to limit the match. The chart does not
+  # guess a controller namespace.
   networkPolicy:
     namespace: ""
     podLabels: {}

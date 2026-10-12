@@ -25,6 +25,8 @@ spec:
   {{- $from := dict }}
   {{- if $namespace }}
   {{- $_ := set $from "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" $namespace)) }}
+  {{- else if not (empty $podLabels) }}
+  {{- $_ := set $from "namespaceSelector" (dict) }}
   {{- end }}
   {{- if not (empty $podLabels) }}
   {{- $_ := set $from "podSelector" (dict "matchLabels" $podLabels) }}
