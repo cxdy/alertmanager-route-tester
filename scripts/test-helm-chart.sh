@@ -35,20 +35,29 @@ grep -Fq 'runAsNonRoot: true' <<<"$rendered"
 grep -Fq 'readOnlyRootFilesystem: true' <<<"$rendered"
 grep -Fq 'allowPrivilegeEscalation: false' <<<"$rendered"
 grep -Fq 'type: RuntimeDefault' <<<"$rendered"
-grep -Fq 'httpGet:' <<<"$rendered"
-grep -Fq 'path: /healthz' <<<"$rendered"
-if grep -Eq 'path: /($|[[:space:]])' <<<"$rendered"; then
-  echo "probes must not use path /" >&2
-  exit 1
-fi
-if grep -Fq 'path: /test' <<<"$rendered"; then
-  echo "probes must not use path /test" >&2
-  exit 1
-fi
-if grep -Fq 'tcpSocket:' <<<"$rendered"; then
-  echo "probes must use httpGet /healthz, not tcpSocket" >&2
-  exit 1
-fi
+deployment=$(awk '
+  /^# Source: alertmanager-route-tester\/templates\/deployment.yaml$/ { in_deployment=1; next }
+  in_deployment && /^---$/ { exit }
+  in_deployment { print }
+' <<<"$rendered")
+for probe in startupProbe readinessProbe livenessProbe; do
+  block=$(awk -v name="$probe" '
+    $0 ~ "^          " name ":$" { found=1; next }
+    found && /^          [A-Za-z]/ { exit }
+    found { print }
+  ' <<<"$deployment")
+  if [[ -z "$block" ]]; then
+    echo "missing $probe" >&2
+    exit 1
+  fi
+  grep -Fq 'httpGet:' <<<"$block"
+  grep -Fq 'path: /healthz' <<<"$block"
+  grep -Fq 'port: http' <<<"$block"
+  if grep -Eq 'tcpSocket:|path: /($|[[:space:]])|path: /test' <<<"$block"; then
+    echo "$probe must httpGet /healthz on port http" >&2
+    exit 1
+  fi
+done
 
 if grep -Eq '^[[:space:]]+limits:' <<<"$rendered"; then
   echo "chart must not set resource limits" >&2
