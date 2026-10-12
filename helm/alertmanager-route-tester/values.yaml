@@ -33,9 +33,12 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# Off by default. tls.enabled is true so a Certificate renders with ingress,
-# and nothing is rendered while ingress itself is disabled.
-ingress:
+# Traefik IngressRoute, cert-manager Certificate, and optional TLSOption.
+# This is not a Kubernetes Ingress. Leave enabled false unless the
+# traefik.io/v1alpha1 CRDs are installed. tls.enabled is true so a
+# Certificate renders with the route, and nothing is rendered while the
+# route itself is disabled.
+traefikIngressRoute:
   enabled: false
   hostname: ""
   entryPoints:
@@ -51,7 +54,7 @@ ingress:
     enabled: false
     clientAuthType: RequireAndVerifyClientCert
     caSecretName: ""
-  # Used only when ingress and the NetworkPolicy are both enabled.
+  # Used only when traefikIngressRoute and the NetworkPolicy are both enabled.
   # Set namespace, podLabels, or both. podLabels alone match those labels in
   # every namespace. Set namespace to limit the match. The chart does not
   # guess a controller namespace.

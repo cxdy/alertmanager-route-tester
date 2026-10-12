@@ -1,20 +1,20 @@
-{{- if .Values.ingress.enabled }}
-{{- $hostname := required "ingress.hostname is required when ingress.enabled is true" .Values.ingress.hostname }}
+{{- if .Values.traefikIngressRoute.enabled }}
+{{- $hostname := required "traefikIngressRoute.hostname is required when traefikIngressRoute.enabled is true" .Values.traefikIngressRoute.hostname }}
 {{- if or (contains "`" $hostname) (contains "\n" $hostname) }}
-{{- fail "ingress.hostname must be a single host and must not contain a backtick" }}
+{{- fail "traefikIngressRoute.hostname must be a single host and must not contain a backtick" }}
 {{- end }}
 {{- $fullname := include "alertmanager-route-tester.fullname" . }}
-{{- $tls := .Values.ingress.tls | default dict }}
-{{- $mtls := .Values.ingress.mtls | default dict }}
+{{- $tls := .Values.traefikIngressRoute.tls | default dict }}
+{{- $mtls := .Values.traefikIngressRoute.mtls | default dict }}
 {{- $tlsEnabled := $tls.enabled }}
 {{- $mtlsEnabled := $mtls.enabled }}
 {{- $tlsSecretName := $tls.secretName | default (printf "%s-tls" $fullname) }}
 {{- $issuer := $tls.issuer | default dict }}
 {{- $issuerKind := $issuer.kind | default "ClusterIssuer" }}
-{{- $entryPoints := .Values.ingress.entryPoints | default (list "websecure") }}
+{{- $entryPoints := .Values.traefikIngressRoute.entryPoints | default (list "websecure") }}
 {{- $clientAuthType := $mtls.clientAuthType | default "RequireAndVerifyClientCert" }}
 {{- if $tlsEnabled }}
-{{- $issuerName := required "ingress.tls.issuer.name is required when ingress.enabled and ingress.tls.enabled are true" $issuer.name }}
+{{- $issuerName := required "traefikIngressRoute.tls.issuer.name is required when traefikIngressRoute.enabled and traefikIngressRoute.tls.enabled are true" $issuer.name }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -31,7 +31,7 @@ spec:
 ---
 {{- end }}
 {{- if $mtlsEnabled }}
-{{- $caSecretName := required "ingress.mtls.caSecretName is required when ingress.mtls.enabled is true" $mtls.caSecretName }}
+{{- $caSecretName := required "traefikIngressRoute.mtls.caSecretName is required when traefikIngressRoute.mtls.enabled is true" $mtls.caSecretName }}
 apiVersion: traefik.io/v1alpha1
 kind: TLSOption
 metadata:

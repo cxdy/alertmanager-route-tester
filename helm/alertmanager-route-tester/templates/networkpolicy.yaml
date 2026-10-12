@@ -15,12 +15,12 @@ spec:
   {{- range .Values.networkPolicy.ingress }}
   {{- $rules = append $rules . }}
   {{- end }}
-  {{- if .Values.ingress.enabled }}
-  {{- $peer := .Values.ingress.networkPolicy | default dict }}
+  {{- if .Values.traefikIngressRoute.enabled }}
+  {{- $peer := .Values.traefikIngressRoute.networkPolicy | default dict }}
   {{- $namespace := $peer.namespace | default "" }}
   {{- $podLabels := $peer.podLabels | default dict }}
   {{- if and (not $namespace) (empty $podLabels) }}
-  {{- fail "ingress.networkPolicy.namespace or ingress.networkPolicy.podLabels is required when ingress.enabled and networkPolicy.enabled are true" }}
+  {{- fail "traefikIngressRoute.networkPolicy.namespace or traefikIngressRoute.networkPolicy.podLabels is required when traefikIngressRoute.enabled and networkPolicy.enabled are true" }}
   {{- end }}
   {{- $from := dict }}
   {{- if $namespace }}
