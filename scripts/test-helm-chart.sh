@@ -39,6 +39,7 @@ grep -Fq 'kind: NetworkPolicy' <<<"$rendered"
 grep -Fq 'policyTypes:' <<<"$rendered"
 grep -Fq '    []' <<<"$rendered"
 grep -Fq 'alertmanagers:' <<<"$rendered"
+grep -Fq '"default":' <<<"$rendered"
 grep -Fq 'targetPort: http' <<<"$rendered"
 if grep -Fq 'name: alertmanager-route-tester-alertmanager-route-tester' <<<"$rendered"; then
   echo "release name must not be duplicated in resource names" >&2
@@ -113,7 +114,7 @@ if grep -Fq 'url: http://alertmanager:9093' <<<"$production_only"; then
   echo "user alertmanagers list must replace the chart default" >&2
   exit 1
 fi
-if grep -Eq '^[[:space:]]+default:' <<<"$production_only"; then
+if grep -Eq '^[[:space:]]+"?default"?:' <<<"$production_only"; then
   echo "default alertmanager must not remain when the user list omits it" >&2
   exit 1
 fi
@@ -130,6 +131,17 @@ if helm template alertmanager-route-tester "$chart" --set-json 'alertmanagers=[{
   echo "alertmanagers entry without a url must fail" >&2
   exit 1
 fi
+if helm template alertmanager-route-tester "$chart" --set-json 'alertmanagers=[{"name":"default","url":"http://alertmanager:9093"},{"name":"default","url":"http://other:9093"}]' >/dev/null 2>&1; then
+  echo "duplicate alertmanager names must fail" >&2
+  exit 1
+fi
+numeric_alertmanager=$(helm template alertmanager-route-tester "$chart" \
+  --set-json 'alertmanagers=[{"name":"123","url":"http://alertmanager:9093"}]')
+grep -Fq '"123":' <<<"$numeric_alertmanager"
+if grep -Eq '^[[:space:]]+123:' <<<"$numeric_alertmanager"; then
+  echo "numeric alertmanager names must stay quoted strings" >&2
+  exit 1
+fi
 
 with_ingress=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
@@ -142,7 +154,7 @@ grep -Fq 'kind: NetworkPolicy' <<<"$with_ingress"
 grep -Fq 'route-tester.example.com' <<<"$with_ingress"
 grep -Fq 'letsencrypt-prod' <<<"$with_ingress"
 grep -Fq 'kind: ClusterIssuer' <<<"$with_ingress"
-grep -Fq 'secretName: alertmanager-route-tester-tls' <<<"$with_ingress"
+grep -Fq 'secretName: "alertmanager-route-tester-tls"' <<<"$with_ingress"
 grep -Fq 'kubernetes.io/metadata.name: traefik' <<<"$with_ingress" || grep -Fq 'kubernetes.io/metadata.name: "traefik"' <<<"$with_ingress"
 
 with_mtls=$(helm template alertmanager-route-tester "$chart" \
@@ -153,8 +165,21 @@ with_mtls=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.mtls.enabled=true \
   --set ingress.mtls.caSecretName=route-tester-client-ca)
 grep -Fq 'kind: TLSOption' <<<"$with_mtls"
-grep -Fq 'route-tester-client-ca' <<<"$with_mtls"
+grep -Fq '"route-tester-client-ca"' <<<"$with_mtls"
 grep -Fq 'RequireAndVerifyClientCert' <<<"$with_mtls"
+grep -Fq 'name: "alertmanager-route-tester-mtls"' <<<"$with_mtls"
+
+numeric_names=$(helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set-string ingress.tls.secretName=123 \
+  --set-string ingress.tls.issuer.name=456 \
+  --set ingress.networkPolicy.namespace=traefik \
+  --set ingress.mtls.enabled=true \
+  --set-string ingress.mtls.caSecretName=789)
+grep -Fq 'secretName: "123"' <<<"$numeric_names"
+grep -Fq 'name: "456"' <<<"$numeric_names"
+grep -Fq '"789"' <<<"$numeric_names"
 
 with_ingress_rules=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \

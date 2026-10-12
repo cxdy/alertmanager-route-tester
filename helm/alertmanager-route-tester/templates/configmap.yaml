@@ -18,9 +18,14 @@ data:
       {{- if eq (len $alertmanagers) 0 }}
       {{- fail "alertmanagers must contain at least one named instance" }}
       {{- end }}
+      {{- $seen := dict }}
       {{- range $alertmanagers }}
       {{- $name := required "each alertmanagers entry requires a name" .name }}
+      {{- if hasKey $seen $name }}
+      {{- fail (printf "duplicate alertmanager name %q" $name) }}
+      {{- end }}
+      {{- $_ := set $seen $name true }}
       {{- $_ := required (printf "alertmanagers.%s.url is required" $name) .url }}
-      {{- $name | nindent 6 }}:
+      {{- $name | quote | nindent 6 }}:
         {{- omit . "name" | toYaml | nindent 8 }}
       {{- end }}

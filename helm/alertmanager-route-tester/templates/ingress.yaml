@@ -22,11 +22,11 @@ metadata:
   labels:
     {{- include "alertmanager-route-tester.labels" . | nindent 4 }}
 spec:
-  secretName: {{ $tlsSecretName }}
+  secretName: {{ $tlsSecretName | quote }}
   dnsNames:
     - {{ $hostname | quote }}
   issuerRef:
-    name: {{ $issuerName }}
+    name: {{ $issuerName | quote }}
     kind: {{ $issuerKind }}
 ---
 {{- end }}
@@ -41,7 +41,7 @@ metadata:
 spec:
   clientAuth:
     secretNames:
-      - {{ $caSecretName }}
+      - {{ $caSecretName | quote }}
     clientAuthType: {{ $clientAuthType }}
 ---
 {{- end }}
@@ -63,11 +63,11 @@ spec:
   {{- if or $tlsEnabled $mtlsEnabled }}
   tls:
     {{- if $tlsEnabled }}
-    secretName: {{ $tlsSecretName }}
+    secretName: {{ $tlsSecretName | quote }}
     {{- end }}
     {{- if $mtlsEnabled }}
     options:
-      name: {{ $fullname }}-mtls
+      name: {{ printf "%s-mtls" $fullname | quote }}
       namespace: {{ .Release.Namespace }}
     {{- end }}
   {{- end }}
