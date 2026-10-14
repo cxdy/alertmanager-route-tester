@@ -194,16 +194,21 @@ with_ingress=$(helm template alertmanager-route-tester "$chart" \
   --set traefikIngressRoute.hostname=route-tester.example.com \
   --set traefikIngressRoute.tls.issuer.name=letsencrypt-prod \
   --set traefikIngressRoute.networkPolicy.namespace=traefik)
-grep -Fq 'kind: IngressRoute' <<<"$with_ingress"
-grep -Fq 'kind: Certificate' <<<"$with_ingress"
+grep -Eq '^kind: Ingress$' <<<"$with_ingress"
 grep -Fq 'kind: NetworkPolicy' <<<"$with_ingress"
 grep -Fq 'route-tester.example.com' <<<"$with_ingress"
 grep -Fq 'letsencrypt-prod' <<<"$with_ingress"
-grep -Fq 'kind: ClusterIssuer' <<<"$with_ingress"
+grep -Fq 'cert-manager.io/cluster-issuer: "letsencrypt-prod"' <<<"$with_ingress"
+grep -Fq 'ingressClassName: "traefik"' <<<"$with_ingress"
+grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: "websecure"' <<<"$with_ingress"
 grep -Fq 'secretName: "alertmanager-route-tester-tls"' <<<"$with_ingress"
 grep -Fq 'kubernetes.io/metadata.name: traefik' <<<"$with_ingress" || grep -Fq 'kubernetes.io/metadata.name: "traefik"' <<<"$with_ingress"
-if grep -Eq '^kind: Ingress$' <<<"$with_ingress"; then
-  echo "traefikIngressRoute must not render a Kubernetes Ingress" >&2
+if grep -Fq 'kind: IngressRoute' <<<"$with_ingress"; then
+  echo "traefikIngressRoute must not render a Traefik IngressRoute CRD" >&2
+  exit 1
+fi
+if grep -Fq 'kind: Certificate' <<<"$with_ingress"; then
+  echo "traefikIngressRoute must not render a cert-manager Certificate; cert-manager watches the Ingress annotations instead" >&2
   exit 1
 fi
 
@@ -217,7 +222,8 @@ with_mtls=$(helm template alertmanager-route-tester "$chart" \
 grep -Fq 'kind: TLSOption' <<<"$with_mtls"
 grep -Fq '"route-tester-client-ca"' <<<"$with_mtls"
 grep -Fq 'RequireAndVerifyClientCert' <<<"$with_mtls"
-grep -Fq 'name: "alertmanager-route-tester-mtls"' <<<"$with_mtls"
+grep -Fq 'name: alertmanager-route-tester-mtls' <<<"$with_mtls"
+grep -Fq 'router.tls.options: "default_alertmanager-route-tester-mtls@kubernetescrd"' <<<"$with_mtls"
 
 quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace yes \
   --set traefikIngressRoute.enabled=true \
@@ -226,7 +232,7 @@ quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace 
   --set traefikIngressRoute.networkPolicy.namespace=traefik \
   --set traefikIngressRoute.mtls.enabled=true \
   --set traefikIngressRoute.mtls.caSecretName=route-tester-client-ca)
-grep -Fq 'namespace: "yes"' <<<"$quoted_namespace"
+grep -Fq 'router.tls.options: "yes_alertmanager-route-tester-mtls@kubernetescrd"' <<<"$quoted_namespace"
 
 pod_labels_only=$(helm template alertmanager-route-tester "$chart" \
   --set traefikIngressRoute.enabled=true \
@@ -253,7 +259,7 @@ numeric_names=$(helm template alertmanager-route-tester "$chart" \
   --set traefikIngressRoute.mtls.enabled=true \
   --set-string traefikIngressRoute.mtls.caSecretName=789)
 grep -Fq 'secretName: "123"' <<<"$numeric_names"
-grep -Fq 'name: "456"' <<<"$numeric_names"
+grep -Fq 'cert-manager.io/cluster-issuer: "456"' <<<"$numeric_names"
 grep -Fq '"789"' <<<"$numeric_names"
 
 with_ingress_rules=$(helm template alertmanager-route-tester "$chart" \

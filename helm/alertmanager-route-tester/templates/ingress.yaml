@@ -1,5 +1,8 @@
 {{- if .Values.traefikIngressRoute.enabled }}
 {{- $hostname := required "traefikIngressRoute.hostname is required when traefikIngressRoute.enabled is true" .Values.traefikIngressRoute.hostname }}
+{{- if or (contains "`" $hostname) (contains "\n" $hostname) }}
+{{- fail "traefikIngressRoute.hostname must be a single host and must not contain a backtick" }}
+{{- end }}
 {{- $fullname := include "alertmanager-route-tester.fullname" . }}
 {{- $tls := .Values.traefikIngressRoute.tls | default dict }}
 {{- $mtls := .Values.traefikIngressRoute.mtls | default dict }}
