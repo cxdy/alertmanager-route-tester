@@ -288,6 +288,17 @@ if helm template alertmanager-route-tester "$chart" \
   exit 1
 fi
 
+if helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.tls.enabled=false \
+  --set ingress.networkPolicy.namespace=traefik \
+  --set ingress.mtls.enabled=true \
+  --set ingress.mtls.caSecretName=route-tester-client-ca >/dev/null 2>&1; then
+  echo "ingress.mtls.enabled with ingress.tls.enabled=false must fail helm template" >&2
+  exit 1
+fi
+
 if grep -Fq 'source: extra-object-test' <<<"$rendered"; then
   echo "empty extraObjects must not render resources" >&2
   exit 1

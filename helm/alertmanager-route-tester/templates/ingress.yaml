@@ -14,6 +14,9 @@
 {{- $entryPoints := .Values.ingress.entryPoints | default (list "websecure") }}
 {{- $clientAuthType := $mtls.clientAuthType | default "RequireAndVerifyClientCert" }}
 {{- if $mtlsEnabled }}
+{{- if not $tlsEnabled }}
+{{- fail "ingress.tls.enabled must be true when ingress.mtls.enabled is true; mTLS requires TLS, and router.tls.options alone does not enable TLS on the route" }}
+{{- end }}
 {{- $caSecretName := required "ingress.mtls.caSecretName is required when ingress.mtls.enabled is true" $mtls.caSecretName }}
 apiVersion: traefik.io/v1alpha1
 kind: TLSOption
