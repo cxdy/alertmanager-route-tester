@@ -33,20 +33,27 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# Traefik IngressRoute, cert-manager Certificate, and optional TLSOption.
-# This is not a Kubernetes Ingress. Leave enabled false unless the
-# traefik.io/v1alpha1 CRDs are installed. tls.enabled is true so a
-# Certificate renders with the route, and nothing is rendered while the
-# route itself is disabled.
-traefikIngressRoute:
+# Standard Kubernetes Ingress, annotated for Traefik and cert-manager.
+# Leave enabled false unless an Ingress controller is installed. tls.enabled
+# is true so cert-manager annotations request a Certificate automatically;
+# no Certificate object is rendered by this chart. An optional Traefik
+# TLSOption CRD is still rendered, and referenced by annotation, when
+# mtls.enabled is true.
+ingress:
   enabled: false
+  className: traefik
   hostname: ""
+  # Annotations here are merged in last and can override the ones the chart
+  # computes (cert-manager issuer, entrypoints, TLS options).
+  annotations: {}
   entryPoints:
     - websecure
   tls:
     enabled: true
     # Empty secretName renders as <release fullname>-tls.
     secretName: ""
+    # commonName is optional; cert-manager defaults the CN to the first host.
+    commonName: ""
     issuer:
       name: ""
       kind: ClusterIssuer
@@ -54,8 +61,8 @@ traefikIngressRoute:
     enabled: false
     clientAuthType: RequireAndVerifyClientCert
     caSecretName: ""
-  # Used only when traefikIngressRoute and the NetworkPolicy are both enabled.
-  # Set namespace, podLabels, or both. podLabels alone match those labels in
+  # Used only when ingress and the NetworkPolicy are both enabled. Set
+  # namespace, podLabels, or both. podLabels alone match those labels in
   # every namespace. Set namespace to limit the match. The chart does not
   # guess a controller namespace.
   networkPolicy:
