@@ -31,7 +31,7 @@ When `ingress.enabled` and `networkPolicy.enabled` are both true, set `ingress.n
 
 ## Ingress
 
-`ingress` renders a standard Kubernetes `Ingress`, annotated for the Traefik ingress controller and cert-manager by default. cert-manager watches annotated Ingress objects directly and creates and manages the Certificate itself, so this chart does not render a `Certificate` object. The default `className` and the `traefik.ingress.kubernetes.io/*` annotations target Traefik; override `className` and `annotations` to match another controller. Enabling it with the default `tls.enabled` also requires cert-manager to be installed and configured with the referenced issuer. When `mtls.enabled` is true, the chart still renders a Traefik `TLSOption` (a `traefik.io/v1alpha1` CRD) and references it from the Ingress via the `traefik.ingress.kubernetes.io/router.tls.options` annotation, so mTLS specifically requires Traefik and its CRDs even though the route itself is a plain Ingress.
+`ingress` renders a plain Kubernetes `Ingress` with no controller- or cert-manager-specific logic baked in: the chart does not generate, infer, or merge any annotations, and it does not render a `Certificate` or any Traefik CRD (such as a `TLSOption`). Everything controller-specific is supplied through `ingress.annotations`, which is rendered as-is.
 
 Nothing is rendered until `ingress.enabled` is true.
 
@@ -40,31 +40,51 @@ ingress:
   enabled: true
   className: traefik
   hostname: route-tester.example.com
-  entryPoints:
-    - websecure
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
   tls:
     enabled: true
     # secretName defaults to <release fullname>-tls when empty
-    issuer:
-      name: letsencrypt-prod
-      kind: ClusterIssuer
-  mtls:
-    enabled: true
-    clientAuthType: RequireAndVerifyClientCert
-    caSecretName: route-tester-client-ca
   networkPolicy:
     namespace: traefik
     podLabels:
       app.kubernetes.io/name: traefik
 ```
 
-`ingress.hostname` is required when the Ingress is enabled. The rule matches that host and forwards to the Service on `service.port`. `ingress.className` defaults to `traefik` and sets `spec.ingressClassName`. `ingress.entryPoints` defaults to `websecure` and renders the `traefik.ingress.kubernetes.io/router.entrypoints` annotation.
+`ingress.hostname` is required when the Ingress is enabled. The rule matches that host and forwards to the Service on `service.port`. `ingress.className` defaults to `traefik` and sets `spec.ingressClassName`; override it for another controller.
 
-`ingress.tls.enabled` defaults to true and renders the `cert-manager.io/cluster-issuer` (or `cert-manager.io/issuer`, depending on `issuer.kind`) annotation, the `traefik.ingress.kubernetes.io/router.tls: "true"` annotation, plus the Ingress `spec.tls` block, so cert-manager creates the Certificate for you. The `router.tls` annotation is required because `spec.tls` only tells Traefik which certificate to use; it does not enable TLS termination on the router itself. The chart requires `ingress.tls.issuer.name` when TLS is enabled. `ingress.tls.issuer.kind` defaults to `ClusterIssuer`. `ingress.tls.secretName` defaults to the release fullname plus `-tls`. Set `ingress.tls.commonName` to render `cert-manager.io/common-name` when the certificate's common name should differ from `hostname`.
+`ingress.tls.enabled` defaults to true and renders the Ingress `spec.tls` block (host plus `ingress.tls.secretName`, which defaults to the release fullname plus `-tls`). It does not add any TLS-related annotations itself: for example, cert-manager only issues a Certificate for annotated Ingress objects, and Traefik only terminates TLS on a route when told to via its own annotation, so add whatever your controller and/or cert-manager require to `ingress.annotations` (as in the example above).
 
-`ingress.mtls.enabled` defaults to false. When it is true, `ingress.tls.enabled` must also be true; the render fails otherwise, because `router.tls.options` only selects a TLS policy for a route that is already terminating TLS, and does not itself enable TLS on a plaintext route. The chart requires `ingress.mtls.caSecretName`, renders a `TLSOption` with `clientAuthType` (default `RequireAndVerifyClientCert`), and references that option from the Ingress using the namespaced `<namespace>-<name>@kubernetescrd` annotation syntax Traefik's `kubernetesCRD` provider uses by default for cross-namespace CRD references from an Ingress. That form matches Traefik's default (`safeNaming` disabled); if the cluster explicitly enables `safeNaming`, Traefik expects `<namespace>_<name>@kubernetescrd` instead, and `ingress.annotations` can override the rendered value. Create the client CA Secret in the release namespace outside the chart. The Secret must contain the CA under `tls.ca` or `ca.crt`.
+For mTLS (or any other feature that needs a separate CRD object, such as Traefik's `TLSOption`), create that object yourself via `extraObjects` (see below) and reference it from `ingress.annotations`. For example, with Traefik:
 
-Use `ingress.annotations` to add or override annotations, such as to point at an existing `TLSOption` instead of the one this chart renders. Keys in `ingress.annotations` are merged with the chart-generated annotations, and a user-supplied value for a key the chart also generates (for example `router.entrypoints` or `router.tls.options`) wins over the generated one instead of producing a duplicate key.
+```yaml
+ingress:
+  enabled: true
+  hostname: route-tester.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # safeNaming defaults to false on Traefik's kubernetesCRD provider, so cross-namespace
+    # @kubernetescrd references from an Ingress use <namespace>-<name>@kubernetescrd unless the
+    # cluster operator has explicitly enabled safeNaming (<namespace>_<name>@kubernetescrd).
+    traefik.ingress.kubernetes.io/router.tls.options: default-route-tester-mtls@kubernetescrd
+
+extraObjects:
+  - apiVersion: traefik.io/v1alpha1
+    kind: TLSOption
+    metadata:
+      name: '{{ include "alertmanager-route-tester.fullname" . }}-mtls'
+    spec:
+      clientAuth:
+        secretNames:
+          - route-tester-client-ca
+        clientAuthType: RequireAndVerifyClientCert
+```
+
+Create the client CA Secret (`route-tester-client-ca` above) in the release namespace outside the chart. The Secret must contain the CA under `tls.ca` or `ca.crt`.
 
 
 ## OpenTelemetry

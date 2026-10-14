@@ -33,37 +33,30 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# Renders a standard Kubernetes Ingress, annotated for Traefik and
-# cert-manager. Leave enabled false unless an Ingress controller is
-# installed. tls.enabled is true so cert-manager annotations request a
-# Certificate automatically; no Certificate object is rendered by this
-# chart. The default className and entrypoints/TLS-options annotations
-# are Traefik-specific; adjust className and annotations for another
-# controller. An optional Traefik TLSOption CRD is still rendered, and
-# referenced by annotation, when mtls.enabled is true (mtls requires
-# Traefik regardless of className).
+# Renders a plain Kubernetes Ingress. Leave enabled false unless an Ingress
+# controller is installed. This chart does not generate any
+# controller-specific or cert-manager-specific annotations and does not
+# render a Certificate or any Traefik CRD object (e.g. TLSOption) itself:
+# add those entirely via ingress.annotations (and, for things that need a
+# separate object such as a Traefik TLSOption for mTLS, via the top-level
+# extraObjects list). See the README for worked examples of both.
 ingress:
   enabled: false
   className: traefik
   hostname: ""
-  # Annotations here are merged in last and can override the ones the chart
-  # computes (cert-manager issuer, entrypoints, TLS options).
+  # Add any annotations your ingress controller and/or cert-manager need
+  # here, e.g. cert-manager.io/cluster-issuer, or Traefik's
+  # traefik.ingress.kubernetes.io/router.* annotations. These are rendered
+  # as-is; the chart does not add, infer, or merge any annotations of its
+  # own.
   annotations: {}
-  entryPoints:
-    - websecure
   tls:
     enabled: true
-    # Empty secretName renders as <release fullname>-tls.
+    # Empty secretName renders as <release fullname>-tls. Pairing this with
+    # a cert-manager annotation above makes cert-manager create the
+    # Certificate automatically; no Certificate object is rendered by this
+    # chart.
     secretName: ""
-    # commonName is optional; cert-manager defaults the CN to the first host.
-    commonName: ""
-    issuer:
-      name: ""
-      kind: ClusterIssuer
-  mtls:
-    enabled: false
-    clientAuthType: RequireAndVerifyClientCert
-    caSecretName: ""
   # Used only when ingress and the NetworkPolicy are both enabled. Set
   # namespace, podLabels, or both. podLabels alone match those labels in
   # every namespace. Set namespace to limit the match. The chart does not

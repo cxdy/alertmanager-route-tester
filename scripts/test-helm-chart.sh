@@ -192,16 +192,14 @@ fi
 with_ingress=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
+  --set 'ingress.annotations.cert-manager\.io/cluster-issuer=letsencrypt-prod' \
   --set ingress.networkPolicy.namespace=traefik)
 grep -Eq '^kind: Ingress$' <<<"$with_ingress"
 grep -Fq 'kind: NetworkPolicy' <<<"$with_ingress"
 grep -Fq 'route-tester.example.com' <<<"$with_ingress"
 grep -Fq 'letsencrypt-prod' <<<"$with_ingress"
-grep -Fq 'cert-manager.io/cluster-issuer: "letsencrypt-prod"' <<<"$with_ingress"
+grep -Fq 'cert-manager.io/cluster-issuer: letsencrypt-prod' <<<"$with_ingress"
 grep -Fq 'ingressClassName: "traefik"' <<<"$with_ingress"
-grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: "websecure"' <<<"$with_ingress"
-grep -Fq 'traefik.ingress.kubernetes.io/router.tls: "true"' <<<"$with_ingress"
 grep -Fq 'secretName: "alertmanager-route-tester-tls"' <<<"$with_ingress"
 grep -Fq 'kubernetes.io/metadata.name: traefik' <<<"$with_ingress" || grep -Fq 'kubernetes.io/metadata.name: "traefik"' <<<"$with_ingress"
 if grep -Fq 'kind: IngressRoute' <<<"$with_ingress"; then
@@ -212,48 +210,38 @@ if grep -Fq 'kind: Certificate' <<<"$with_ingress"; then
   echo "ingress must not render a cert-manager Certificate; cert-manager watches the Ingress annotations instead" >&2
   exit 1
 fi
-
-with_mtls=$(helm template alertmanager-route-tester "$chart" \
-  --set ingress.enabled=true \
-  --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
-  --set ingress.networkPolicy.namespace=traefik \
-  --set ingress.mtls.enabled=true \
-  --set ingress.mtls.caSecretName=route-tester-client-ca)
-grep -Fq 'kind: TLSOption' <<<"$with_mtls"
-grep -Fq '"route-tester-client-ca"' <<<"$with_mtls"
-grep -Fq 'RequireAndVerifyClientCert' <<<"$with_mtls"
-grep -Fq 'name: alertmanager-route-tester-mtls' <<<"$with_mtls"
-grep -Fq 'router.tls.options: "default-alertmanager-route-tester-mtls@kubernetescrd"' <<<"$with_mtls"
-
-quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace yes \
-  --set ingress.enabled=true \
-  --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
-  --set ingress.networkPolicy.namespace=traefik \
-  --set ingress.mtls.enabled=true \
-  --set ingress.mtls.caSecretName=route-tester-client-ca)
-grep -Fq 'router.tls.options: "yes-alertmanager-route-tester-mtls@kubernetescrd"' <<<"$quoted_namespace"
-
-annotation_override=$(helm template alertmanager-route-tester "$chart" \
-  --set ingress.enabled=true \
-  --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
-  --set ingress.networkPolicy.namespace=traefik \
-  --set-string 'ingress.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints=custom-entrypoint' \
-  --set-string 'ingress.annotations.my-extra-annotation=hello')
-grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: "custom-entrypoint"' <<<"$annotation_override"
-grep -Fq 'my-extra-annotation: "hello"' <<<"$annotation_override"
-entrypoints_count=$(grep -Fc 'traefik.ingress.kubernetes.io/router.entrypoints:' <<<"$annotation_override")
-if [ "$entrypoints_count" -ne 1 ]; then
-  echo "ingress.annotations overrides must merge, not duplicate, generated annotation keys" >&2
+if grep -Fq 'kind: TLSOption' <<<"$with_ingress"; then
+  echo "the chart must not render a Traefik TLSOption; bring one via extraObjects instead" >&2
   exit 1
 fi
+
+no_annotations=$(helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.tls.enabled=false \
+  --set ingress.networkPolicy.namespace=traefik \
+  --show-only templates/ingress.yaml)
+if grep -Fq 'annotations:' <<<"$no_annotations"; then
+  echo "the chart must not generate any annotations on its own; it must only render ingress.annotations verbatim" >&2
+  exit 1
+fi
+if grep -Fq 'tls:' <<<"$no_annotations"; then
+  echo "ingress.tls.enabled=false must omit spec.tls" >&2
+  exit 1
+fi
+
+annotations_verbatim=$(helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.networkPolicy.namespace=traefik \
+  --set-string 'ingress.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints=websecure' \
+  --set-string 'ingress.annotations.my-extra-annotation=hello')
+grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: websecure' <<<"$annotations_verbatim"
+grep -Fq 'my-extra-annotation: hello' <<<"$annotations_verbatim"
 
 pod_labels_only=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
   --set-json 'ingress.networkPolicy.podLabels={"app.kubernetes.io/name":"traefik"}')
 grep -Fq 'namespaceSelector: {}' <<<"$pod_labels_only"
 grep -Fq 'app.kubernetes.io/name: traefik' <<<"$pod_labels_only"
@@ -270,18 +258,12 @@ numeric_names=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set ingress.hostname=route-tester.example.com \
   --set-string ingress.tls.secretName=123 \
-  --set-string ingress.tls.issuer.name=456 \
-  --set ingress.networkPolicy.namespace=traefik \
-  --set ingress.mtls.enabled=true \
-  --set-string ingress.mtls.caSecretName=789)
+  --set ingress.networkPolicy.namespace=traefik)
 grep -Fq 'secretName: "123"' <<<"$numeric_names"
-grep -Fq 'cert-manager.io/cluster-issuer: "456"' <<<"$numeric_names"
-grep -Fq '"789"' <<<"$numeric_names"
 
 with_ingress_rules=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
   --set ingress.networkPolicy.namespace=traefik \
   --set-json 'networkPolicy.ingress=[{"from":[{"podSelector":{"matchLabels":{"app":"approved-proxy"}}}],"ports":[{"protocol":"TCP","port":8080}]}]')
 grep -Fq 'approved-proxy' <<<"$with_ingress_rules"
@@ -289,7 +271,6 @@ grep -Fq 'kubernetes.io/metadata.name: traefik' <<<"$with_ingress_rules" || grep
 
 if helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
   --set ingress.networkPolicy.namespace=traefik >/dev/null 2>&1; then
   echo "ingress without a hostname must fail helm template" >&2
   exit 1
@@ -298,20 +279,8 @@ fi
 if helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
   --set-string 'ingress.hostname=bad`host.example.com' \
-  --set ingress.tls.issuer.name=letsencrypt-prod \
   --set ingress.networkPolicy.namespace=traefik >/dev/null 2>&1; then
   echo "ingress hostname with a backtick must fail helm template" >&2
-  exit 1
-fi
-
-if helm template alertmanager-route-tester "$chart" \
-  --set ingress.enabled=true \
-  --set ingress.hostname=route-tester.example.com \
-  --set ingress.tls.enabled=false \
-  --set ingress.networkPolicy.namespace=traefik \
-  --set ingress.mtls.enabled=true \
-  --set ingress.mtls.caSecretName=route-tester-client-ca >/dev/null 2>&1; then
-  echo "ingress.mtls.enabled with ingress.tls.enabled=false must fail helm template" >&2
   exit 1
 fi
 
