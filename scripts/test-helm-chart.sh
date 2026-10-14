@@ -201,6 +201,7 @@ grep -Fq 'letsencrypt-prod' <<<"$with_ingress"
 grep -Fq 'cert-manager.io/cluster-issuer: "letsencrypt-prod"' <<<"$with_ingress"
 grep -Fq 'ingressClassName: "traefik"' <<<"$with_ingress"
 grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: "websecure"' <<<"$with_ingress"
+grep -Fq 'traefik.ingress.kubernetes.io/router.tls: "true"' <<<"$with_ingress"
 grep -Fq 'secretName: "alertmanager-route-tester-tls"' <<<"$with_ingress"
 grep -Fq 'kubernetes.io/metadata.name: traefik' <<<"$with_ingress" || grep -Fq 'kubernetes.io/metadata.name: "traefik"' <<<"$with_ingress"
 if grep -Fq 'kind: IngressRoute' <<<"$with_ingress"; then
@@ -233,6 +234,21 @@ quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace 
   --set ingress.mtls.enabled=true \
   --set ingress.mtls.caSecretName=route-tester-client-ca)
 grep -Fq 'router.tls.options: "yes-alertmanager-route-tester-mtls@kubernetescrd"' <<<"$quoted_namespace"
+
+annotation_override=$(helm template alertmanager-route-tester "$chart" \
+  --set ingress.enabled=true \
+  --set ingress.hostname=route-tester.example.com \
+  --set ingress.tls.issuer.name=letsencrypt-prod \
+  --set ingress.networkPolicy.namespace=traefik \
+  --set-string 'ingress.annotations.traefik\.ingress\.kubernetes\.io/router\.entrypoints=custom-entrypoint' \
+  --set-string 'ingress.annotations.my-extra-annotation=hello')
+grep -Fq 'traefik.ingress.kubernetes.io/router.entrypoints: "custom-entrypoint"' <<<"$annotation_override"
+grep -Fq 'my-extra-annotation: "hello"' <<<"$annotation_override"
+entrypoints_count=$(grep -Fc 'traefik.ingress.kubernetes.io/router.entrypoints:' <<<"$annotation_override")
+if [ "$entrypoints_count" -ne 1 ]; then
+  echo "ingress.annotations overrides must merge, not duplicate, generated annotation keys" >&2
+  exit 1
+fi
 
 pod_labels_only=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \

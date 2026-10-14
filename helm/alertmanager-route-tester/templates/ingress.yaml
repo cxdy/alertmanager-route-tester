@@ -37,27 +37,33 @@ metadata:
   name: {{ $fullname }}
   labels:
     {{- include "alertmanager-route-tester.labels" . | nindent 4 }}
+  {{- $generatedAnnotations := dict }}
+  {{- if $tlsEnabled }}
+  {{- $issuerName := required "ingress.tls.issuer.name is required when ingress.tls.enabled is true" $issuer.name }}
+  {{- if eq $issuerKind "ClusterIssuer" }}
+  {{- $_ := set $generatedAnnotations "cert-manager.io/cluster-issuer" $issuerName }}
+  {{- else }}
+  {{- $_ := set $generatedAnnotations "cert-manager.io/issuer" $issuerName }}
+  {{- end }}
+  {{- with $tls.commonName }}
+  {{- $_ := set $generatedAnnotations "cert-manager.io/common-name" . }}
+  {{- end }}
+  {{- /* spec.tls only selects the certificate; it does not turn TLS on for the router. Without this
+     annotation the router stays plaintext on entrypoints that don't enable TLS by default. */}}
+  {{- $_ := set $generatedAnnotations "traefik.ingress.kubernetes.io/router.tls" "true" }}
+  {{- end }}
+  {{- $_ := set $generatedAnnotations "traefik.ingress.kubernetes.io/router.entrypoints" (join "," $entryPoints) }}
+  {{- if $mtlsEnabled }}
+  {{- /* safeNaming defaults to false on the Traefik kubernetesCRD provider, so cross-namespace
+     @kubernetescrd references use the legacy namespace-name@kubernetescrd form unless the
+     cluster operator has explicitly enabled safeNaming (namespace_name@kubernetescrd). */}}
+  {{- $_ := set $generatedAnnotations "traefik.ingress.kubernetes.io/router.tls.options" (printf "%s-%s-mtls@kubernetescrd" .Release.Namespace $fullname) }}
+  {{- end }}
+  {{- $userAnnotations := deepCopy (.Values.ingress.annotations | default dict) }}
+  {{- $annotations := merge $userAnnotations $generatedAnnotations }}
   annotations:
-    {{- if $tlsEnabled }}
-    {{- $issuerName := required "ingress.tls.issuer.name is required when ingress.tls.enabled is true" $issuer.name }}
-    {{- if eq $issuerKind "ClusterIssuer" }}
-    cert-manager.io/cluster-issuer: {{ $issuerName | quote }}
-    {{- else }}
-    cert-manager.io/issuer: {{ $issuerName | quote }}
-    {{- end }}
-    {{- with $tls.commonName }}
-    cert-manager.io/common-name: {{ . | quote }}
-    {{- end }}
-    {{- end }}
-    traefik.ingress.kubernetes.io/router.entrypoints: {{ join "," $entryPoints | quote }}
-    {{- if $mtlsEnabled }}
-    {{- /* safeNaming defaults to false on the Traefik kubernetesCRD provider, so cross-namespace
-       @kubernetescrd references use the legacy namespace-name@kubernetescrd form unless the
-       cluster operator has explicitly enabled safeNaming (namespace_name@kubernetescrd). */}}
-    traefik.ingress.kubernetes.io/router.tls.options: {{ printf "%s-%s-mtls@kubernetescrd" .Release.Namespace $fullname | quote }}
-    {{- end }}
-    {{- with .Values.ingress.annotations }}
-    {{- toYaml . | nindent 4 }}
+    {{- range $key, $value := $annotations }}
+    {{ $key }}: {{ $value | quote }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "traefik" | quote }}
