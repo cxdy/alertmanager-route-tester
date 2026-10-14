@@ -2,7 +2,7 @@ AI-generated content prepared on Will's behalf.
 
 # Alertmanager Route Tester Helm chart
 
-The chart deploys the web UI as a ClusterIP Service. `traefikIngressRoute` is off by default and renders a standard Kubernetes `Ingress` (not a Traefik CRD) only when enabled. Configure an authenticated access layer before exposing the UI. The UI has no built-in authentication and can display receiver configuration returned by Alertmanager.
+The chart deploys the web UI as a ClusterIP Service. `ingress` is off by default and renders a standard Kubernetes `Ingress` (not a Traefik CRD) only when enabled. Configure an authenticated access layer before exposing the UI. The UI has no built-in authentication and can display receiver configuration returned by Alertmanager.
 
 The chart creates a default-deny ingress NetworkPolicy. `networkPolicy.enabled` defaults to true and `networkPolicy.ingress` defaults to an empty list, which denies all ingress. Set `networkPolicy.ingress` to allow access from trusted workloads. NetworkPolicy enforcement depends on the cluster's CNI. Startup, readiness, and liveness probes GET `/healthz`, which does not call Alertmanager. The image must serve that path.
 
@@ -27,16 +27,16 @@ networkPolicy:
           port: 8080
 ```
 
-When `traefikIngressRoute.enabled` and `networkPolicy.enabled` are both true, set `traefikIngressRoute.networkPolicy.namespace`, `traefikIngressRoute.networkPolicy.podLabels`, or both. The chart appends an allow rule for that peer on `service.port`, in addition to any `networkPolicy.ingress` entries. It does not guess a controller namespace. `podLabels` alone matches those labels in every namespace. A pod selector without a namespace selector would only see the release namespace, so a controller running elsewhere would stay blocked. Set `namespace` to limit the match. The render fails when both are empty so the default-deny policy cannot silently block Traefik.
+When `ingress.enabled` and `networkPolicy.enabled` are both true, set `ingress.networkPolicy.namespace`, `ingress.networkPolicy.podLabels`, or both. The chart appends an allow rule for that peer on `service.port`, in addition to any `networkPolicy.ingress` entries. It does not guess a controller namespace. `podLabels` alone matches those labels in every namespace. A pod selector without a namespace selector would only see the release namespace, so a controller running elsewhere would stay blocked. Set `namespace` to limit the match. The render fails when both are empty so the default-deny policy cannot silently block Traefik.
 
-## Traefik IngressRoute
+## Ingress
 
-`traefikIngressRoute` renders a standard Kubernetes `Ingress`, annotated for the Traefik ingress controller and cert-manager. The name reflects that the annotations (entrypoints, TLS options) and default `className` are Traefik-specific, even though the rendered object is a plain `Ingress`, not a Traefik CRD. cert-manager watches annotated Ingress objects directly and creates and manages the Certificate itself, so this chart does not render a `Certificate` object. Leave it disabled unless Traefik is the Ingress controller. Enabling it with the default `tls.enabled` also requires cert-manager to be installed and configured with the referenced issuer. When `mtls.enabled` is true, the chart still renders a Traefik `TLSOption` (a `traefik.io/v1alpha1` CRD) and references it from the Ingress via the `traefik.ingress.kubernetes.io/router.tls.options` annotation, so mTLS requires the Traefik CRDs even though the route itself is a plain Ingress.
+`ingress` renders a standard Kubernetes `Ingress`, annotated for the Traefik ingress controller and cert-manager by default. cert-manager watches annotated Ingress objects directly and creates and manages the Certificate itself, so this chart does not render a `Certificate` object. The default `className` and the `traefik.ingress.kubernetes.io/*` annotations target Traefik; override `className` and `annotations` to match another controller. Enabling it with the default `tls.enabled` also requires cert-manager to be installed and configured with the referenced issuer. When `mtls.enabled` is true, the chart still renders a Traefik `TLSOption` (a `traefik.io/v1alpha1` CRD) and references it from the Ingress via the `traefik.ingress.kubernetes.io/router.tls.options` annotation, so mTLS specifically requires Traefik and its CRDs even though the route itself is a plain Ingress.
 
-Nothing is rendered until `traefikIngressRoute.enabled` is true.
+Nothing is rendered until `ingress.enabled` is true.
 
 ```yaml
-traefikIngressRoute:
+ingress:
   enabled: true
   className: traefik
   hostname: route-tester.example.com
@@ -58,13 +58,13 @@ traefikIngressRoute:
       app.kubernetes.io/name: traefik
 ```
 
-`traefikIngressRoute.hostname` is required when the Ingress is enabled. The rule matches that host and forwards to the Service on `service.port`. `traefikIngressRoute.className` defaults to `traefik` and sets `spec.ingressClassName`. `traefikIngressRoute.entryPoints` defaults to `websecure` and renders the `traefik.ingress.kubernetes.io/router.entrypoints` annotation.
+`ingress.hostname` is required when the Ingress is enabled. The rule matches that host and forwards to the Service on `service.port`. `ingress.className` defaults to `traefik` and sets `spec.ingressClassName`. `ingress.entryPoints` defaults to `websecure` and renders the `traefik.ingress.kubernetes.io/router.entrypoints` annotation.
 
-`traefikIngressRoute.tls.enabled` defaults to true and renders the `cert-manager.io/cluster-issuer` (or `cert-manager.io/issuer`, depending on `issuer.kind`) annotation plus the Ingress `spec.tls` block, so cert-manager creates the Certificate for you. The chart requires `traefikIngressRoute.tls.issuer.name` when TLS is enabled. `traefikIngressRoute.tls.issuer.kind` defaults to `ClusterIssuer`. `traefikIngressRoute.tls.secretName` defaults to the release fullname plus `-tls`. Set `traefikIngressRoute.tls.commonName` to render `cert-manager.io/common-name` when the certificate's common name should differ from `hostname`.
+`ingress.tls.enabled` defaults to true and renders the `cert-manager.io/cluster-issuer` (or `cert-manager.io/issuer`, depending on `issuer.kind`) annotation plus the Ingress `spec.tls` block, so cert-manager creates the Certificate for you. The chart requires `ingress.tls.issuer.name` when TLS is enabled. `ingress.tls.issuer.kind` defaults to `ClusterIssuer`. `ingress.tls.secretName` defaults to the release fullname plus `-tls`. Set `ingress.tls.commonName` to render `cert-manager.io/common-name` when the certificate's common name should differ from `hostname`.
 
-`traefikIngressRoute.mtls.enabled` defaults to false. When it is true, the chart requires `traefikIngressRoute.mtls.caSecretName`, renders a `TLSOption` with `clientAuthType` (default `RequireAndVerifyClientCert`), and references that option from the Ingress using the namespaced `<namespace>_<name>@kubernetescrd` annotation syntax Traefik requires for CRD references from an Ingress. Create the client CA Secret in the release namespace outside the chart. The Secret must contain the CA under `tls.ca` or `ca.crt`.
+`ingress.mtls.enabled` defaults to false. When it is true, the chart requires `ingress.mtls.caSecretName`, renders a `TLSOption` with `clientAuthType` (default `RequireAndVerifyClientCert`), and references that option from the Ingress using the namespaced `<namespace>_<name>@kubernetescrd` annotation syntax Traefik requires for CRD references from an Ingress. Create the client CA Secret in the release namespace outside the chart. The Secret must contain the CA under `tls.ca` or `ca.crt`.
 
-Use `traefikIngressRoute.annotations` to add or override annotations, such as to point at an existing `TLSOption` instead of the one this chart renders.
+Use `ingress.annotations` to add or override annotations, such as to point at an existing `TLSOption` instead of the one this chart renders.
 
 ## OpenTelemetry
 

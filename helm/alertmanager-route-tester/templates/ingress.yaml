@@ -1,20 +1,20 @@
-{{- if .Values.traefikIngressRoute.enabled }}
-{{- $hostname := required "traefikIngressRoute.hostname is required when traefikIngressRoute.enabled is true" .Values.traefikIngressRoute.hostname }}
+{{- if .Values.ingress.enabled }}
+{{- $hostname := required "ingress.hostname is required when ingress.enabled is true" .Values.ingress.hostname }}
 {{- if or (contains "`" $hostname) (contains "\n" $hostname) }}
-{{- fail "traefikIngressRoute.hostname must be a single host and must not contain a backtick" }}
+{{- fail "ingress.hostname must be a single host and must not contain a backtick" }}
 {{- end }}
 {{- $fullname := include "alertmanager-route-tester.fullname" . }}
-{{- $tls := .Values.traefikIngressRoute.tls | default dict }}
-{{- $mtls := .Values.traefikIngressRoute.mtls | default dict }}
+{{- $tls := .Values.ingress.tls | default dict }}
+{{- $mtls := .Values.ingress.mtls | default dict }}
 {{- $tlsEnabled := $tls.enabled }}
 {{- $mtlsEnabled := $mtls.enabled }}
 {{- $tlsSecretName := $tls.secretName | default (printf "%s-tls" $fullname) }}
 {{- $issuer := $tls.issuer | default dict }}
 {{- $issuerKind := $issuer.kind | default "ClusterIssuer" }}
-{{- $entryPoints := .Values.traefikIngressRoute.entryPoints | default (list "websecure") }}
+{{- $entryPoints := .Values.ingress.entryPoints | default (list "websecure") }}
 {{- $clientAuthType := $mtls.clientAuthType | default "RequireAndVerifyClientCert" }}
 {{- if $mtlsEnabled }}
-{{- $caSecretName := required "traefikIngressRoute.mtls.caSecretName is required when traefikIngressRoute.mtls.enabled is true" $mtls.caSecretName }}
+{{- $caSecretName := required "ingress.mtls.caSecretName is required when ingress.mtls.enabled is true" $mtls.caSecretName }}
 apiVersion: traefik.io/v1alpha1
 kind: TLSOption
 metadata:
@@ -36,7 +36,7 @@ metadata:
     {{- include "alertmanager-route-tester.labels" . | nindent 4 }}
   annotations:
     {{- if $tlsEnabled }}
-    {{- $issuerName := required "traefikIngressRoute.tls.issuer.name is required when traefikIngressRoute.tls.enabled is true" $issuer.name }}
+    {{- $issuerName := required "ingress.tls.issuer.name is required when ingress.tls.enabled is true" $issuer.name }}
     {{- if eq $issuerKind "ClusterIssuer" }}
     cert-manager.io/cluster-issuer: {{ $issuerName | quote }}
     {{- else }}
@@ -51,11 +51,11 @@ metadata:
     {{- /* Cross-namespace/provider references use namespace_name@kubernetescrd with safeNaming. */}}
     traefik.ingress.kubernetes.io/router.tls.options: {{ printf "%s_%s-mtls@kubernetescrd" .Release.Namespace $fullname | quote }}
     {{- end }}
-    {{- with .Values.traefikIngressRoute.annotations }}
+    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  ingressClassName: {{ .Values.traefikIngressRoute.className | default "traefik" | quote }}
+  ingressClassName: {{ .Values.ingress.className | default "traefik" | quote }}
   rules:
     - host: {{ $hostname | quote }}
       http:

@@ -34,14 +34,15 @@ resources:
     memory: 64Mi
 
 # Renders a standard Kubernetes Ingress, annotated for Traefik and
-# cert-manager. The annotations (entrypoints, TLS options) and the default
-# className are Traefik-specific, so this is named traefikIngressRoute
-# rather than ingress to signal that. Leave enabled false unless Traefik is
-# the Ingress controller. tls.enabled is true so cert-manager annotations
-# request a Certificate automatically; no Certificate object is rendered by
-# this chart. An optional Traefik TLSOption CRD is still rendered, and
-# referenced by annotation, when mtls.enabled is true.
-traefikIngressRoute:
+# cert-manager. Leave enabled false unless an Ingress controller is
+# installed. tls.enabled is true so cert-manager annotations request a
+# Certificate automatically; no Certificate object is rendered by this
+# chart. The default className and entrypoints/TLS-options annotations
+# are Traefik-specific; adjust className and annotations for another
+# controller. An optional Traefik TLSOption CRD is still rendered, and
+# referenced by annotation, when mtls.enabled is true (mtls requires
+# Traefik regardless of className).
+ingress:
   enabled: false
   className: traefik
   hostname: ""
