@@ -4,7 +4,7 @@ AI-generated content prepared on Will's behalf.
 
 The chart deploys the web UI as a ClusterIP Service. `traefikIngressRoute` is off by default and renders a standard Kubernetes `Ingress` (not a Traefik CRD) only when enabled. Configure an authenticated access layer before exposing the UI. The UI has no built-in authentication and can display receiver configuration returned by Alertmanager.
 
-The chart creates a default-deny ingress NetworkPolicy. `networkPolicy.enabled` defaults to true and `networkPolicy.ingress` defaults to an empty list, which denies all ingress. Set `networkPolicy.ingress` to allow access from trusted workloads. NetworkPolicy enforcement depends on the cluster's CNI. Probes check that the app port is open; they do not fail when Alertmanager is unreachable.
+The chart creates a default-deny ingress NetworkPolicy. `networkPolicy.enabled` defaults to true and `networkPolicy.ingress` defaults to an empty list, which denies all ingress. Set `networkPolicy.ingress` to allow access from trusted workloads. NetworkPolicy enforcement depends on the cluster's CNI. Startup, readiness, and liveness probes GET `/healthz`, which does not call Alertmanager. The image must serve that path.
 
 Allow Traefik by copying this rule. The policy port is the chart Service port (`service.port`, default 8080). The container listens on that same port. Do not set a second port, such as the Traefik entrypoint port.
 
@@ -150,6 +150,8 @@ imagePullSecrets:
 ```
 
 Create the referenced TLS Secret and image-pull Secret outside the chart. Keep private-key bytes out of chart values, and configure `cert_file` and `key_file` as paths to the mounted Secret files. Do not put credentials in Alertmanager URLs. The application logs the configured URL, which would expose URL credentials in logs.
+
+An empty `image.tag` uses `Chart.appVersion`. Set `image.tag` to override that tag. `image.pullPolicy` defaults to `IfNotPresent`. The next release must bump `Chart.yaml` `version` and `appVersion` to the git tag without the `v` prefix. The GHCR package may still require the `imagePullSecrets` entry above unless its visibility is public.
 
 Install with a values file containing the Alertmanager endpoint and permitted NetworkPolicy sources:
 

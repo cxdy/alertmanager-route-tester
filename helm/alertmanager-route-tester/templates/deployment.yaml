@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: alertmanager-route-tester
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.extraEnv }}
           env:
@@ -45,15 +45,18 @@ spec:
               containerPort: {{ include "alertmanager-route-tester.listenPort" . }}
               protocol: TCP
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: http
             periodSeconds: 5
             failureThreshold: 12
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: http
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: http
           resources:
             requests:

@@ -16,6 +16,11 @@ fi
 
 helm lint "$chart"
 rendered=$(helm template alertmanager-route-tester "$chart")
+app_version=$(awk '/^appVersion:/ { gsub(/"/, "", $2); print $2; exit }' "$chart/Chart.yaml")
+if [[ -z "$app_version" ]]; then
+  echo "Chart.appVersion is required" >&2
+  exit 1
+fi
 
 grep -Fq 'listen: "0.0.0.0:8080"' <<<"$rendered"
 grep -Fq 'containerPort: 8080' <<<"$rendered"
@@ -50,7 +55,14 @@ if helm template alertmanager-route-tester "$chart" --set service.port=65536 >/d
   exit 1
 fi
 grep -Fq '/etc/alertmanager-route-tester/config.yaml' <<<"$rendered"
-grep -Fq 'ghcr.io/linode-obs/alertmanager-route-tester:latest' <<<"$rendered"
+grep -Fq "ghcr.io/linode-obs/alertmanager-route-tester:${app_version}" <<<"$rendered"
+grep -Fq 'imagePullPolicy: IfNotPresent' <<<"$rendered"
+with_image_tag=$(helm template alertmanager-route-tester "$chart" --set image.tag=custom)
+grep -Fq 'ghcr.io/linode-obs/alertmanager-route-tester:custom' <<<"$with_image_tag"
+if grep -Fq "ghcr.io/linode-obs/alertmanager-route-tester:${app_version}" <<<"$with_image_tag"; then
+  echo "image.tag must override Chart.appVersion" >&2
+  exit 1
+fi
 grep -Fq 'kind: NetworkPolicy' <<<"$rendered"
 grep -Fq 'policyTypes:' <<<"$rendered"
 grep -Fq '    []' <<<"$rendered"
@@ -66,11 +78,29 @@ grep -Fq 'runAsNonRoot: true' <<<"$rendered"
 grep -Fq 'readOnlyRootFilesystem: true' <<<"$rendered"
 grep -Fq 'allowPrivilegeEscalation: false' <<<"$rendered"
 grep -Fq 'type: RuntimeDefault' <<<"$rendered"
-grep -Fq 'tcpSocket:' <<<"$rendered"
-if grep -Fq 'httpGet:' <<<"$rendered"; then
-  echo "probes must not depend on Alertmanager HTTP responses" >&2
-  exit 1
-fi
+deployment=$(awk '
+  /^# Source: alertmanager-route-tester\/templates\/deployment.yaml$/ { in_deployment=1; next }
+  in_deployment && /^---$/ { exit }
+  in_deployment { print }
+' <<<"$rendered")
+for probe in startupProbe readinessProbe livenessProbe; do
+  block=$(awk -v name="$probe" '
+    $0 ~ "^          " name ":$" { found=1; next }
+    found && /^          [A-Za-z]/ { exit }
+    found { print }
+  ' <<<"$deployment")
+  if [[ -z "$block" ]]; then
+    echo "missing $probe" >&2
+    exit 1
+  fi
+  grep -Fq 'httpGet:' <<<"$block"
+  grep -Fq 'path: /healthz' <<<"$block"
+  grep -Fq 'port: http' <<<"$block"
+  if grep -Eq 'tcpSocket:|path: /($|[[:space:]])|path: /test' <<<"$block"; then
+    echo "$probe must httpGet /healthz on port http" >&2
+    exit 1
+  fi
+done
 
 if grep -Eq '^[[:space:]]+limits:' <<<"$rendered"; then
   echo "chart must not set resource limits" >&2
