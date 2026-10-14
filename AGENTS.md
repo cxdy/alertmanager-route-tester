@@ -5,8 +5,10 @@
 - Use `mise run start` to test locally
 - Use the standard library for application code, except OpenTelemetry Go modules and their transitive dependencies required for telemetry. `otelc` is approved as a build tool. `gopkg.in/yaml.v3` is approved for YAML parsing, and `github.com/prometheus/alertmanager v0.33.0` is approved for native route matching. Keep the Alertmanager version aligned with `.mise.toml` and CI.
 - Route matching logic is in `internal/alertmanager/client.go`
+- Build the binary with `mise run build` (runs `go tool otelc go build -o bin/alertmanager-route-tester .`), never plain `go build`. The telemetry integration tests run `bin/alertmanager-route-tester`, and a binary built without `otelc` fails `TestHTTPTraceConnectsRequestToAlertmanager`.
 - All tests must pass before committing
 - Follow TDD when adding features
+- When `helm/alertmanager-route-tester` templates or values change, bump `Chart.yaml` `version`. A later chart change needs its own bump after a release alignment. When cutting a release, set `appVersion` to the git tag without the `v` prefix so the default image tag matches the published image.
 
 ## Quick Start
 
@@ -57,6 +59,8 @@ Tests use real Alertmanager routing logic without mocks. Run with:
 ```bash
 mise run test
 ```
+
+`mise run test` rebuilds `bin/alertmanager-route-tester` with `otelc` first. If you run `go test ./...` directly, run `mise run build` beforehand; otherwise the telemetry integration tests are skipped when the binary is absent or may exercise a stale or uninstrumented binary.
 
 ## Connecting to Real Alertmanager
 
