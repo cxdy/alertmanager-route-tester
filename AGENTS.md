@@ -8,6 +8,7 @@
 - Build the binary with `mise run build` (runs `go tool otelc go build -o bin/alertmanager-route-tester .`), never plain `go build`. The telemetry integration tests run `bin/alertmanager-route-tester`, and a binary built without `otelc` fails `TestHTTPTraceConnectsRequestToAlertmanager`.
 - All tests must pass before committing
 - Follow TDD when adding features
+- When `helm/alertmanager-route-tester` templates or values change, bump `Chart.yaml` `version`. A later chart change needs its own bump after a release alignment. When cutting a release, set `appVersion` to the git tag without the `v` prefix so the default image tag matches the published image.
 
 ## Quick Start
 
