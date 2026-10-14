@@ -48,8 +48,10 @@ metadata:
     {{- end }}
     traefik.ingress.kubernetes.io/router.entrypoints: {{ join "," $entryPoints | quote }}
     {{- if $mtlsEnabled }}
-    {{- /* Cross-namespace/provider references use namespace_name@kubernetescrd with safeNaming. */}}
-    traefik.ingress.kubernetes.io/router.tls.options: {{ printf "%s_%s-mtls@kubernetescrd" .Release.Namespace $fullname | quote }}
+    {{- /* safeNaming defaults to false on the Traefik kubernetesCRD provider, so cross-namespace
+       @kubernetescrd references use the legacy namespace-name@kubernetescrd form unless the
+       cluster operator has explicitly enabled safeNaming (namespace_name@kubernetescrd). */}}
+    traefik.ingress.kubernetes.io/router.tls.options: {{ printf "%s-%s-mtls@kubernetescrd" .Release.Namespace $fullname | quote }}
     {{- end }}
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}

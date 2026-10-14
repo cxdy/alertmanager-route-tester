@@ -223,7 +223,7 @@ grep -Fq 'kind: TLSOption' <<<"$with_mtls"
 grep -Fq '"route-tester-client-ca"' <<<"$with_mtls"
 grep -Fq 'RequireAndVerifyClientCert' <<<"$with_mtls"
 grep -Fq 'name: alertmanager-route-tester-mtls' <<<"$with_mtls"
-grep -Fq 'router.tls.options: "default_alertmanager-route-tester-mtls@kubernetescrd"' <<<"$with_mtls"
+grep -Fq 'router.tls.options: "default-alertmanager-route-tester-mtls@kubernetescrd"' <<<"$with_mtls"
 
 quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace yes \
   --set ingress.enabled=true \
@@ -232,7 +232,7 @@ quoted_namespace=$(helm template alertmanager-route-tester "$chart" --namespace 
   --set ingress.networkPolicy.namespace=traefik \
   --set ingress.mtls.enabled=true \
   --set ingress.mtls.caSecretName=route-tester-client-ca)
-grep -Fq 'router.tls.options: "yes_alertmanager-route-tester-mtls@kubernetescrd"' <<<"$quoted_namespace"
+grep -Fq 'router.tls.options: "yes-alertmanager-route-tester-mtls@kubernetescrd"' <<<"$quoted_namespace"
 
 pod_labels_only=$(helm template alertmanager-route-tester "$chart" \
   --set ingress.enabled=true \
